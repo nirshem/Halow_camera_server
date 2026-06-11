@@ -7,6 +7,7 @@
 #include "esp_camera.h"
 #include "mmiperf.h"
 #include "HaLow.h"
+#include "sd_read_write.h"
 
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
@@ -44,6 +45,10 @@ void startCameraServer();
 void setup() {
   Serial.begin(115200);
 //  Serial.setDebugOutput(true);
+  sdmmcInit();
+  removeDir(SD, "/video");
+  createDir(SD, "/video");
+  
   camera_config_t config;
   config.ledc_channel = LEDC_CHANNEL_0;
   config.ledc_timer = LEDC_TIMER_0;
