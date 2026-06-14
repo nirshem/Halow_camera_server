@@ -40,15 +40,45 @@ typedef enum {
 
 static const char *TAG1 = "camera_test";
 
+#define SNAPSHOT_TIMER 5000 // in milli seconds
+
 void startCameraServer();
+
+
+#include "FS.h"
+#include "SD_MMC.h"
+#include "esp_camera.h"
+
+uint32_t frame_time;
+char frame_path[64];
+
+
+bool savePhotoToSD()
+{
+    camera_fb_t *fb = esp_camera_fb_get();
+
+    if (!fb) {
+        Serial.println("Camera capture failed");
+        return false;
+    }
+
+    snprintf(frame_path, sizeof(frame_path),
+             "/%u_photo.jpg", frame_time);
+
+    writejpg(SD, frame_path, fb->buf, fb->len);
+
+    esp_camera_fb_return(fb);
+
+    return true;
+
+    Serial.printf("Photo saved as: %s\n", frame_path);
+    return true;
+}
 
 void setup() {
   Serial.begin(115200);
 //  Serial.setDebugOutput(true);
-  sdmmcInit();
-  removeDir(SD, "/video");
-  createDir(SD, "/video");
-  
+   
   camera_config_t config;
   config.ledc_channel = LEDC_CHANNEL_0;
   config.ledc_timer = LEDC_TIMER_0;
@@ -77,7 +107,6 @@ void setup() {
   config.fb_count = 1;
   config.frame_size = FRAMESIZE_SVGA;
   config.fb_location = CAMERA_FB_IN_DRAM;
-
 
   // camera init
   esp_err_t err = esp_camera_init(&config);
@@ -119,10 +148,20 @@ void setup() {
   Serial.print("Camera Ready! Use 'http://");
   Serial.print(HaLow.localIP());
   Serial.println("' to connect");
+
+  // Init SD
+  sdmmcInit();
+  removeDir(SD, "/video");
+  createDir(SD, "/video");
+
+
 }
 
 void loop() {
+  
   // Do nothing. Everything is done in another task by the web server
-  delay(10000);
-  Serial.printf("[time %u]",millis()/1000);
+  delay(SNAPSHOT_TIMER);
+  frame_time = (millis()/1000);
+  savePhotoToSD();
+  Serial.printf("[Snapshot trigger: time %u]\n",frame_time);
 }

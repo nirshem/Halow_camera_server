@@ -19,6 +19,7 @@
 #include "driver/ledc.h"
 #include "sdkconfig.h"
 #include "camera_index.h"
+#include "sd_read_write.h"
 
 #if defined(ARDUINO_ARCH_ESP32) && defined(CONFIG_ARDUHAL_ESP_LOG)
 #include "esp32-hal-log.h"
@@ -87,6 +88,13 @@ typedef struct
     httpd_req_t *req;
     size_t len;
 } jpg_chunking_t;
+
+typedef struct
+{
+    bool rec_flag;
+    int  snapshot_every; // in milisec
+} application_setting_t;
+
 
 #define PART_BOUNDARY "123456789000000000000987654321"
 static const char *_STREAM_CONTENT_TYPE = "multipart/x-mixed-replace;boundary=" PART_BOUNDARY;
@@ -332,6 +340,71 @@ static esp_err_t bmp_handler(httpd_req_t *req)
 #endif
     ESP_LOGI(TAG, "BMP: %llums, %uB", (uint64_t)((fr_end - fr_start) / 1000), buf_len);
     return res;
+}
+
+static esp_err_t sd_list_handler(httpd_req_t *req)
+{
+    File root = SD.open("/");
+    printf( "Shoom 1\n");
+
+    String html = "<html><body><h2>SD Card Files</h2>";
+
+    File file = root.openNextFile();
+
+    while (file) {
+        html += "<a href=\"/sd/";
+        html += file.name();
+        html += "\">";
+        html += file.name();
+        html += "</a><br>";
+
+        file = root.openNextFile();
+    }
+
+    html += "</body></html>";
+
+    httpd_resp_set_type(req, "text/html");
+    httpd_resp_send(req, html.c_str(), html.length());
+
+    return ESP_OK;
+}
+
+
+static esp_err_t sd_file_handler(httpd_req_t *req)
+{
+    // allow /sd/anything
+    if (strncmp(req->uri, "/sd", 3) != 0) {
+        httpd_resp_send_404(req);
+        return ESP_FAIL;
+    }
+    printf( "Boon 1\n");
+    const char *filepath = req->uri + 3;  // skip "/sd"
+
+    if (filepath[0] == '/') {
+        filepath++;
+    }
+    printf( "Boon 2\n");
+
+    File file = SD.open(filepath);
+
+    if (!file) {
+        httpd_resp_send_404(req);
+        return ESP_FAIL;
+    }
+    printf( "Boon 3\n");
+
+    httpd_resp_set_type(req, "image/jpeg");
+
+    uint8_t buf[1024];
+    size_t len;
+
+    while ((len = file.read(buf, sizeof(buf))) > 0) {
+        httpd_resp_send_chunk(req, (const char *)buf, len);
+    }
+
+    file.close();
+    httpd_resp_send_chunk(req, NULL, 0);
+    return ESP_OK;
 }
 
 static size_t jpg_encode_stream(void *arg, size_t index, const void *data, size_t len)
@@ -972,6 +1045,7 @@ static esp_err_t status_handler(httpd_req_t *req)
         p+=print_reg(p, s, 0x132, 0xFF);
     }
 
+    
     p += sprintf(p, "\"xclk\":%u,", s->xclk_freq_hz / 1000000);
     p += sprintf(p, "\"pixformat\":%u,", s->pixformat);
     p += sprintf(p, "\"framesize\":%u,", s->status.framesize);
@@ -1201,6 +1275,7 @@ static esp_err_t index_handler(httpd_req_t *req)
     }
 }
 
+
 void startCameraServer()
 {
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
@@ -1217,6 +1292,22 @@ void startCameraServer()
         .handle_ws_control_frames = false,
         .supported_subprotocol = NULL
 #endif
+    };
+
+    httpd_uri_t sd_list_uri_slash = {
+        .uri = "/sd/",
+        .method = HTTP_GET,
+        .handler = sd_list_handler,
+        .user_ctx = NULL
+    };
+
+
+
+    httpd_uri_t sd_file_uri = {
+        .uri      = "/sd/56_photo.jpg",
+        .method   = HTTP_GET,
+        .handler  = sd_file_handler,
+        .user_ctx = NULL
     };
 
     httpd_uri_t status_uri = {
@@ -1364,6 +1455,9 @@ void startCameraServer()
     {
       ESP_LOGI(TAG, "'%d'", 22);
         httpd_register_uri_handler(camera_httpd, &index_uri);
+        httpd_register_uri_handler(camera_httpd, &sd_list_uri_slash);
+        httpd_register_uri_handler(camera_httpd, &sd_file_uri);
+
         httpd_register_uri_handler(camera_httpd, &cmd_uri);
         httpd_register_uri_handler(camera_httpd, &status_uri);
         httpd_register_uri_handler(camera_httpd, &capture_uri);
