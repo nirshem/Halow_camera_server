@@ -20,9 +20,15 @@
 // ===========================
 // Enter your Halow credentials
 // ===========================
+#include <WiFi.h>
 
-const char* ssid     = "NEW4";
-const char* password = "Aa123456";
+const char* wifi_ssid = "OnePlus 5" ;//"ORBI79";
+const char* wifi_password = "12345678";
+
+
+//#define HALOW //if not defined  than WIFI
+const char* halow_ssid     = "NEW4";
+const char* halow_password = "Aa123456";
 
 ESP_EVENT_DECLARE_BASE(ESP_HTTP_SERVER_EVENT);
 //ESP_EVENT_DEFINE_BASE(ESP_HTTP_SERVER_EVENT);
@@ -40,7 +46,7 @@ typedef enum {
 
 static const char *TAG1 = "camera_test";
 
-#define SNAPSHOT_TIMER 5000 // in milli seconds
+#define SNAPSHOT_TIMER 10000 // in milli seconds
 
 void startCameraServer();
 
@@ -121,6 +127,7 @@ void setup() {
   s->set_brightness(s, 1); // up the brightness just a bit
   s->set_saturation(s, 0); // lower the saturation
 
+#ifdef HALOW
   Serial.println("Start WiFi HaLow");
   
 #ifdef HT_RC3268
@@ -130,7 +137,7 @@ void setup() {
 #endif
 
   HaLow.init("US");
-  HaLow.begin(ssid, password);
+  HaLow.begin(halow_ssid, halow_password);
   Serial.print("MAC:");
   Serial.print(HaLow.macAddress());
   Serial.println();
@@ -142,19 +149,37 @@ void setup() {
 
   Serial.println("");
   Serial.println("HaLow connected");
-  
+
   startCameraServer();
   
   Serial.print("Camera Ready! Use 'http://");
   Serial.print(HaLow.localIP());
   Serial.println("' to connect");
 
+#else //WIFI
+
+
+  WiFi.mode(WIFI_STA);      // Enable Wi-Fi Station mode
+  WiFi.begin(wifi_ssid, wifi_password);
+
+  Serial.print("Connecting");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("Connected");
+
+  startCameraServer();
+  
+  Serial.print("Camera Ready! Use 'http://");
+  Serial.print(WiFi.localIP());
+  Serial.println("' to connect");
+#endif
+
   // Init SD
   sdmmcInit();
   removeDir(SD, "/video");
   createDir(SD, "/video");
-
-
 }
 
 void loop() {

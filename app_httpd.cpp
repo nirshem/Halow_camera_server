@@ -345,7 +345,6 @@ static esp_err_t bmp_handler(httpd_req_t *req)
 static esp_err_t sd_list_handler(httpd_req_t *req)
 {
     File root = SD.open("/");
-    printf( "Shoom 1\n");
 
     String html = "<html><body><h2>SD Card Files</h2>";
 
@@ -377,13 +376,11 @@ static esp_err_t sd_file_handler(httpd_req_t *req)
         httpd_resp_send_404(req);
         return ESP_FAIL;
     }
-    printf( "Boon 1\n");
     const char *filepath = req->uri + 3;  // skip "/sd"
 
-    if (filepath[0] == '/') {
-        filepath++;
-    }
-    printf( "Boon 2\n");
+    //if (filepath[0] == '/') {
+       // filepath++;
+   // }
 
     File file = SD.open(filepath);
 
@@ -391,7 +388,6 @@ static esp_err_t sd_file_handler(httpd_req_t *req)
         httpd_resp_send_404(req);
         return ESP_FAIL;
     }
-    printf( "Boon 3\n");
 
     httpd_resp_set_type(req, "image/jpeg");
 
@@ -1281,6 +1277,8 @@ void startCameraServer()
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.max_uri_handlers = 16;
 
+    config.uri_match_fn = httpd_uri_match_wildcard;
+    
     httpd_uri_t index_uri = {
         .uri = "/",
         .method = HTTP_GET,
@@ -1301,10 +1299,8 @@ void startCameraServer()
         .user_ctx = NULL
     };
 
-
-
     httpd_uri_t sd_file_uri = {
-        .uri      = "/sd/56_photo.jpg",
+        .uri      = "/sd/*",
         .method   = HTTP_GET,
         .handler  = sd_file_handler,
         .user_ctx = NULL
