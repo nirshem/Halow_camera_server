@@ -1259,10 +1259,15 @@ static esp_err_t index_handler(httpd_req_t *req)
     sensor_t *s = esp_camera_sensor_get();
     if (s != NULL) {
         if (s->id.PID == OV3660_PID) {
+            printf ( "Camera type OV3660_PID\n");
             return httpd_resp_send(req, (const char *)index_ov3660_html_gz, index_ov3660_html_gz_len);
         } else if (s->id.PID == OV5640_PID) {
+            printf ( "Camera type OV5640_PID\n");
+
             return httpd_resp_send(req, (const char *)index_ov5640_html_gz, index_ov5640_html_gz_len);
         } else {
+            printf ( "Camera type OV2640_PID\n");
+
             return httpd_resp_send(req, (const char *)index_ov2640_html_gz, index_ov2640_html_gz_len);
         }
     } else {
