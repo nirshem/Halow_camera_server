@@ -22,11 +22,24 @@
 // ===========================
 #include <WiFi.h>
 
+struct tm timeinfo;
+
 const char* wifi_ssid = "OnePlus 5" ;//"ORBI79";
 const char* wifi_password = "12345678";
 
 
 //#define HALOW //if not defined  than WIFI
+#define WIFI
+
+#define REC_SCHEDUALE_FILTER
+
+#ifdef REC_SCHEDUALE_FILTER
+#define  START_HOUR 6    // 06:00
+#define  STOP_HOUR  22  // 20:00
+//#define  START_MINUTE  42
+//#define  STOP_MINUTE   42
+#endif
+
 const char* halow_ssid     = "NEW4";
 const char* halow_password = "Aa123456";
 
@@ -46,7 +59,7 @@ typedef enum {
 
 static const char *TAG1 = "camera_test";
 
-#define SNAPSHOT_TIMER 10000 // in milli seconds
+#define SNAPSHOT_TIMER 1500 // in milli seconds
 
 void startCameraServer();
 
@@ -55,9 +68,8 @@ void startCameraServer();
 #include "SD_MMC.h"
 #include "esp_camera.h"
 
-uint32_t frame_time;
 char frame_path[64];
-
+char local_time_str[32];
 
 bool savePhotoToSD()
 {
@@ -69,8 +81,9 @@ bool savePhotoToSD()
     }
 
     snprintf(frame_path, sizeof(frame_path),
-             "/%u_photo.jpg", frame_time);
+             "/%s.jpg",local_time_str);
 
+    printf ("Iteration %s\n",local_time_str);
     writejpg(SD, frame_path, fb->buf, fb->len);
 
     esp_camera_fb_return(fb);
@@ -83,6 +96,7 @@ bool savePhotoToSD()
 
 void setup() {
   Serial.begin(115200);
+
 //  Serial.setDebugOutput(true);
    
   camera_config_t config;
@@ -105,14 +119,14 @@ void setup() {
   config.pin_pwdn = PWDN_GPIO_NUM;
   config.pin_reset = RESET_GPIO_NUM;
   config.xclk_freq_hz = 20000000;
-  config.frame_size = FRAMESIZE_UXGA;
+  config.frame_size = FRAMESIZE_QSXGA;//FRAMESIZE_QSXGA;//FRAMESIZE_FHD;
   config.pixel_format = PIXFORMAT_JPEG; // for streaming
-  config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
+  config.grab_mode = CAMERA_GRAB_LATEST;
   config.fb_location = CAMERA_FB_IN_PSRAM;
   config.jpeg_quality = 12;
   config.fb_count = 1;
-  config.frame_size = FRAMESIZE_SVGA;
-  config.fb_location = CAMERA_FB_IN_DRAM;
+  //config.frame_size = FRAMESIZE_SVGA;
+  //config.fb_location = CAMERA_FB_IN_PSRAM;
 
   // camera init
   esp_err_t err = esp_camera_init(&config);
@@ -126,7 +140,7 @@ void setup() {
   s->set_vflip(s, 0); // flip it back
   s->set_brightness(s, 1); // up the brightness just a bit
   s->set_saturation(s, 0); // lower the saturation
-
+//  s->set_framesize(s,FRAMESIZE_FHD);
 #ifdef HALOW
   Serial.println("Start WiFi HaLow");
   
@@ -156,7 +170,7 @@ void setup() {
   Serial.print(HaLow.localIP());
   Serial.println("' to connect");
 
-#else //WIFI
+#elif defined(WIFI) //WIFI
 
 
   WiFi.mode(WIFI_STA);      // Enable Wi-Fi Station mode
@@ -178,15 +192,37 @@ void setup() {
 
   // Init SD
   sdmmcInit();
-  removeDir(SD, "/video");
-  createDir(SD, "/video");
+  //removeDir(SD, "/video");
+  //createDir(SD, "/video");
+  
+  // Israel is GMT+3
+  configTime(3 * 3600, 0, "pool.ntp.org");
+  
+  get_time();
 }
 
-void loop() {
+void get_time()
+{
+  if (getLocalTime(&timeinfo)) 
+  {
+      strftime(local_time_str, sizeof(local_time_str), "%H-%M-%S__%d_%m_%Y", &timeinfo);
+      //printf ("ESP32 Time %s\n",local_time_str);
+  }
+}
+
+void loop() 
+{
   
   // Do nothing. Everything is done in another task by the web server
   delay(SNAPSHOT_TIMER);
-  frame_time = (millis()/1000);
+  get_time();
+#ifdef REC_SCHEDUALE_FILTER
+  if (timeinfo.tm_hour >= START_HOUR && timeinfo.tm_hour <=STOP_HOUR)
+  {
+      savePhotoToSD();
+  }
+#else
   savePhotoToSD();
-  Serial.printf("[Snapshot trigger: time %u]\n",frame_time);
+#endif
+
 }
