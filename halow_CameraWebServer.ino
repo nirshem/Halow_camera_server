@@ -45,7 +45,7 @@ struct tm timeinfo;
 //#define  STOP_MINUTE   42
 #endif
 
-#define SNAPSHOT_TIMER 1000 // in milli seconds
+#define SNAPSHOT_TIMER 300 // in milli seconds
 
 const char* halow_ssid     = "NEW4";
 const char* halow_password = "Aa123456";
