@@ -16,29 +16,36 @@
 #include "esp_event.h"
 #include "esp_timer.h"
 
+#include "FS.h"
+#include "esp_camera.h"
+
 
 // ===========================
 // Enter your Halow credentials
 // ===========================
 #include <WiFi.h>
 
-struct tm timeinfo;
 
 const char* wifi_ssid = "OnePlus 5" ;//"ORBI79";
 const char* wifi_password = "12345678";
+char local_time_str[32];
+time_t now = time(NULL);
+struct tm timeinfo;
 
 
 //#define HALOW //if not defined  than WIFI
 #define WIFI
 
-#define REC_SCHEDUALE_FILTER
-
+//#define REC_SCHEDUALE_FILTER
+//#define DELETE_SD
 #ifdef REC_SCHEDUALE_FILTER
 #define  START_HOUR 6    // 06:00
 #define  STOP_HOUR  22  // 20:00
 //#define  START_MINUTE  42
 //#define  STOP_MINUTE   42
 #endif
+
+#define SNAPSHOT_TIMER 1000 // in milli seconds
 
 const char* halow_ssid     = "NEW4";
 const char* halow_password = "Aa123456";
@@ -59,39 +66,42 @@ typedef enum {
 
 static const char *TAG1 = "camera_test";
 
-#define SNAPSHOT_TIMER 1500 // in milli seconds
 
 void startCameraServer();
 
 
-#include "FS.h"
-#include "SD_MMC.h"
-#include "esp_camera.h"
-
-char frame_path[64];
-char local_time_str[32];
-
-bool savePhotoToSD()
+void savePhotoToSD()
 {
+
     camera_fb_t *fb = esp_camera_fb_get();
 
-    if (!fb) {
+    if (!fb)
+    {
         Serial.println("Camera capture failed");
-        return false;
+        return;
     }
 
-    snprintf(frame_path, sizeof(frame_path),
-             "/%s.jpg",local_time_str);
-
-    printf ("Iteration %s\n",local_time_str);
-    writejpg(SD, frame_path, fb->buf, fb->len);
-
+    writejpg(SD, local_time_str, fb->buf, fb->len);
     esp_camera_fb_return(fb);
+}
 
-    return true;
+void get_time()
+{
+    Serial.println("Getting time...");
 
-    Serial.printf("Photo saved as: %s\n", frame_path);
-    return true;
+    if (!getLocalTime(&timeinfo, 10000))
+    {
+        Serial.println("NTP FAILED");
+        return;
+    }
+
+    strftime(local_time_str,
+             sizeof(local_time_str),
+             "%H-%M-%S__%d_%m_%Y",
+             &timeinfo);
+
+    Serial.print("TIME=");
+    Serial.println(local_time_str);
 }
 
 void setup() {
@@ -118,13 +128,13 @@ void setup() {
   config.pin_sscb_scl = SIOC_GPIO_NUM;
   config.pin_pwdn = PWDN_GPIO_NUM;
   config.pin_reset = RESET_GPIO_NUM;
-  config.xclk_freq_hz = 20000000;
+  config.xclk_freq_hz = 40000000;
   config.frame_size = FRAMESIZE_QSXGA;//FRAMESIZE_QSXGA;//FRAMESIZE_FHD;
   config.pixel_format = PIXFORMAT_JPEG; // for streaming
   config.grab_mode = CAMERA_GRAB_LATEST;
   config.fb_location = CAMERA_FB_IN_PSRAM;
   config.jpeg_quality = 12;
-  config.fb_count = 1;
+  config.fb_count = 2;
   //config.frame_size = FRAMESIZE_SVGA;
   //config.fb_location = CAMERA_FB_IN_PSRAM;
 
@@ -138,6 +148,7 @@ void setup() {
   sensor_t * s = esp_camera_sensor_get();
   // initial sensors are flipped vertically and colors are a bit saturated
   s->set_vflip(s, 0); // flip it back
+  s->set_hmirror(s, 1); // flip it back
   s->set_brightness(s, 1); // up the brightness just a bit
   s->set_saturation(s, 0); // lower the saturation
 //  s->set_framesize(s,FRAMESIZE_FHD);
@@ -183,6 +194,19 @@ void setup() {
   }
   Serial.println("Connected");
 
+  configTzTime("IST-2IDT,M3.4.4/26,M10.5.0",
+              "pool.ntp.org",
+              "time.nist.gov");
+
+  Serial.println("Waiting for NTP...");
+
+  while (!getLocalTime(&timeinfo, 5000))
+  {
+      Serial.println("Retry...");
+      delay(1000);
+  }
+
+  Serial.println("NTP OK");
   startCameraServer();
   
   Serial.print("Camera Ready! Use 'http://");
@@ -192,37 +216,48 @@ void setup() {
 
   // Init SD
   sdmmcInit();
-  //removeDir(SD, "/video");
-  //createDir(SD, "/video");
-  
-  // Israel is GMT+3
-  configTime(3 * 3600, 0, "pool.ntp.org");
-  
-  get_time();
-}
+  Serial.println("SD initialized\n");
 
-void get_time()
-{
-  if (getLocalTime(&timeinfo)) 
+#ifdef DELETE_SD
+  deleteAllFiles(SD, "/");
+  Serial.println("SD deleted\n");
+#endif  
+
+  get_time();
+
+  Serial.println("NTP Done\n");
+
+#ifdef HALOW
+    // to turn off halow ?
+#elif defined(WIFI)
+
+  if( WiFi.status() == WL_CONNECTED)
   {
-      strftime(local_time_str, sizeof(local_time_str), "%H-%M-%S__%d_%m_%Y", &timeinfo);
-      //printf ("ESP32 Time %s\n",local_time_str);
+   // WiFi.disconnect(true);
+   // WiFi.mode(WIFI_OFF);
   }
+#endif
 }
 
-void loop() 
+
+
+
+void loop()
 {
-  
-  // Do nothing. Everything is done in another task by the web server
   delay(SNAPSHOT_TIMER);
-  get_time();
+  now = time(NULL);
+  localtime_r(&now, &timeinfo);
+
+  strftime(local_time_str,sizeof(local_time_str),"/%H-%M-%S__%d_%m_%Y",&timeinfo);
+  sprintf(local_time_str,"%s_%d.jpg",local_time_str,millis());
+  
 #ifdef REC_SCHEDUALE_FILTER
-  if (timeinfo.tm_hour >= START_HOUR && timeinfo.tm_hour <=STOP_HOUR)
+  if (timeinfo.tm_hour >= START_HOUR &&
+      timeinfo.tm_hour <= STOP_HOUR)
   {
-      savePhotoToSD();
+    savePhotoToSD();
   }
 #else
-  savePhotoToSD();
+    savePhotoToSD ();
 #endif
-
 }

@@ -4,8 +4,13 @@ SPIClass SD_SPI(HSPI);
 
 void sdmmcInit(void){
   SD_SPI.begin(SD_CLK, SD_MISO, SD_MOSI, SD_CS);
-  if(!SD.begin(SD_CS,SD_SPI)) {
-    Serial.println("Card Mount Failed");
+  if(!SD.begin(SD_CS,SD_SPI,40000000)) 
+  {
+    while(1)
+    { 
+        Serial.println("Card Mount Failed - are you sure SD card inserterd ? ");
+        delay(1000);
+    }
     return;
   }
   uint8_t cardType = SD.cardType();
@@ -189,7 +194,8 @@ void writejpg(fs::FS &fs, const char * path, const uint8_t *buf, size_t size){
       return;
     }
     file.write(buf, size);
-    Serial.printf("Saved file to path: %s\r\n", path);
+    //Serial.printf("Saved file to path: %s\r\n", path);
+    file.close();
 }
 
 int readFileNum(fs::FS &fs, const char * dirname){
@@ -210,4 +216,41 @@ int readFileNum(fs::FS &fs, const char * dirname){
       num++;
     }
     return num;  
+}
+
+
+void deleteAllFiles(fs::FS &fs, const char *dirname)
+{
+    File root = fs.open(dirname);
+
+    if (!root || !root.isDirectory())
+    {
+        Serial.println("Directory open failed");
+        return;
+    }
+
+    std::vector<String> files;
+
+    File file = root.openNextFile();
+
+    while (file)
+    {
+        if (!file.isDirectory())
+        {
+            files.push_back(file.path());
+        }
+
+        file.close();
+        file = root.openNextFile();
+    }
+
+    root.close();
+
+    for (auto &p : files)
+    {
+        Serial.printf("Deleting %s\n", p.c_str());
+
+        if (!fs.remove(p.c_str()))
+            Serial.println("FAILED");
+    }
 }

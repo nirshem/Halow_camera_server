@@ -25,5 +25,6 @@ void testFileIO(fs::FS &fs, const char * path);
 
 void writejpg(fs::FS &fs, const char * path, const uint8_t *buf, size_t size);
 int readFileNum(fs::FS &fs, const char * dirname);
+void deleteAllFiles(fs::FS &fs, const char * dirname) ;
 
 #endif
