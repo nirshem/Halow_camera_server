@@ -6,10 +6,18 @@
 #include "halow_SD.h"
 #include "SPI.h"
 
-#define SD_MOSI  11 //Please do not modify it. //MOSI
-#define SD_CLK  15 //Please do not modify it. //CLK
-#define SD_MISO   16 //Please do not modify it. //MISO
-#define SD_CS   10 //Please do not modify it. //MISO
+#define HELTEC_HT_HC33
+#ifdef HELTEC_HT_HC33
+    #define SD_MOSI  11 //Please do not modify it. //MOSI
+    #define SD_CLK  15 //Please do not modify it. //CLK
+    #define SD_MISO   16 //Please do not modify it. //MISO
+    #define SD_CS   10 //Please do not modify it. //MISO
+#elif defined(XIAO_HALOW)
+    #define SD_MOSI  11 //Please do not modify it. //MOSI
+    #define SD_CLK  15 //Please do not modify it. //CLK
+    #define SD_MISO   16 //Please do not modify it. //MISO
+    #define SD_CS   10 //Please do not modify it. //MISO
+#endif
 
 void sdmmcInit(void); 
 
