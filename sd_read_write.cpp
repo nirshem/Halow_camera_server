@@ -18,20 +18,20 @@ void sdmmcInit(void){
       Serial.println("No SD card attached");
       return;
   }
-  Serial.print("SD Card Type: ");
+  //Serial.print("SD Card Type: ");
   if(cardType == CARD_MMC){
-      Serial.println("MMC");
+  //    Serial.println("MMC");
   } else if(cardType == CARD_SD){
-      Serial.println("SDSC");
+  //    Serial.println("SDSC");
   } else if(cardType == CARD_SDHC){
-      Serial.println("SDHC");
+   //   Serial.println("SDHC");
   } else {
       Serial.println("UNKNOWN");
   }
   uint64_t cardSize = SD.cardSize() / (1024 * 1024);
-  Serial.printf("SD Card Size: %lluMB\n", cardSize);  
-  Serial.printf("Total space: %lluMB\r\n", SD.totalBytes() / (1024 * 1024));
-  Serial.printf("Used space: %lluMB\r\n", SD.usedBytes() / (1024 * 1024));
+ // Serial.printf("SD Card Size: %lluMB\n", cardSize);  
+ // Serial.printf("Total space: %lluMB\r\n", SD.totalBytes() / (1024 * 1024));
+ // Serial.printf("Used space: %lluMB\r\n", SD.usedBytes() / (1024 * 1024));
 }
 
 void listDir(fs::FS &fs, const char * dirname, uint8_t levels){

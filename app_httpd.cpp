@@ -427,10 +427,10 @@ static esp_err_t capture_handler(httpd_req_t *req)
 #endif
 
 #ifdef CONFIG_LED_ILLUMINATOR_ENABLED
-    enable_led(true);
+    //enable_led(true);
     vTaskDelay(150 / portTICK_PERIOD_MS); // The LED needs to be turned on ~150ms before the call to esp_camera_fb_get()
     fb = esp_camera_fb_get();             // or it won't be visible in the frame. A better way to do this is needed.
-    enable_led(false);
+    //enable_led(false);
 #else
     fb = esp_camera_fb_get();
 #endif
@@ -630,7 +630,7 @@ static esp_err_t stream_handler(httpd_req_t *req)
     httpd_resp_set_hdr(req, "X-Framerate", "60");
 
 #ifdef CONFIG_LED_ILLUMINATOR_ENABLED
-    enable_led(true);
+    //enable_led(true);
     isStreaming = true;
 #endif
 
@@ -856,7 +856,7 @@ static esp_err_t stream_handler(httpd_req_t *req)
 
 #ifdef CONFIG_LED_ILLUMINATOR_ENABLED
     isStreaming = false;
-    enable_led(false);
+   // enable_led(false);
 #endif
 
     return res;
@@ -960,8 +960,8 @@ static esp_err_t cmd_handler(httpd_req_t *req)
 #ifdef CONFIG_LED_ILLUMINATOR_ENABLED
     else if (!strcmp(variable, "led_intensity")) {
         led_duty = val;
-        if (isStreaming)
-            enable_led(true);
+        //if (isStreaming)
+           // enable_led(true);
     }
 #endif
 
