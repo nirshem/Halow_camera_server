@@ -15,7 +15,6 @@
 #include "esp_event_base.h"
 #include "esp_event.h"
 #include "esp_timer.h"
-
 #include "FS.h"
 #include "esp_camera.h"
 
@@ -27,7 +26,7 @@
 
 
 const char* wifi_ssid = "OnePlus 5" ;//"ORBI79";
-const char* wifi_password = "12345678";
+const char* wifi_password = "12345678";//"ASD@123asd";//
 char local_time_str[32];
 time_t now = time(NULL);
 struct tm timeinfo;
@@ -36,7 +35,7 @@ struct tm timeinfo;
 //#define HALOW //if not defined  than WIFI
 #define WIFI
 
-//#define REC_SCHEDUALE_FILTER
+#define REC_SCHEDUALE_FILTER
 //#define DELETE_SD
 #ifdef REC_SCHEDUALE_FILTER
 #define  START_HOUR 6    // 06:00
@@ -45,7 +44,7 @@ struct tm timeinfo;
 //#define  STOP_MINUTE   42
 #endif
 
-#define SNAPSHOT_TIMER 300 // in milli seconds
+#define SNAPSHOT_TIMER 4500 // in milli seconds
 
 const char* halow_ssid     = "NEW4";
 const char* halow_password = "Aa123456";
@@ -138,7 +137,7 @@ void setup() {
   //config.frame_size = FRAMESIZE_SVGA;
   //config.fb_location = CAMERA_FB_IN_PSRAM;
 
-  // camera init
+  // camera initial.println("NTP OK");
   esp_err_t err = esp_camera_init(&config);
   if (err != ESP_OK) {
     Serial.printf("Camera init failed with error 0x%x", err);
@@ -183,7 +182,9 @@ void setup() {
 
 #elif defined(WIFI) //WIFI
 
-
+  //IPAddress ip(10,232,76,67);
+  //IPAddress gateway(10,232,76,237);
+  //IPAddress subnet(255,255,255,0);
   WiFi.mode(WIFI_STA);      // Enable Wi-Fi Station mode
   WiFi.begin(wifi_ssid, wifi_password);
 
@@ -192,7 +193,12 @@ void setup() {
     delay(500);
     Serial.print(".");
   }
-  Serial.println("Connected");
+  Serial.println("Wifi Connected");
+  Serial.print("MAC Address: ");
+  Serial.println(WiFi.macAddress());
+  Serial.println(WiFi.localIP());
+  Serial.println(WiFi.gatewayIP());
+  Serial.println(WiFi.subnetMask());
 
   configTzTime("IST-2IDT,M3.4.4/26,M10.5.0",
               "pool.ntp.org",
@@ -207,6 +213,15 @@ void setup() {
   }
 
   Serial.println("NTP OK");
+  strftime(local_time_str,
+          sizeof(local_time_str),
+          "%H-%M-%S__%d_%m_%Y",
+          &timeinfo);
+
+Serial.print("TIME=");
+Serial.println(local_time_str);
+
+  Serial.println("NTP Done\n");
   startCameraServer();
   
   Serial.print("Camera Ready! Use 'http://");
@@ -223,9 +238,7 @@ void setup() {
   Serial.println("SD deleted\n");
 #endif  
 
-  get_time();
 
-  Serial.println("NTP Done\n");
 
 #ifdef HALOW
     // to turn off halow ?
