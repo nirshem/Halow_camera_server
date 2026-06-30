@@ -43,7 +43,7 @@ RTC_DATA_ATTR bool camera_alive = false;
 #define WIFI
 #define LED_PIN 19
 #define REC_SCHEDUALE_FILTER
-#define DELETE_SD
+//#define DELETE_SD
 #ifdef REC_SCHEDUALE_FILTER
 #define  START_HOUR 6    // 06:00
 #define  STOP_HOUR  22  // 20:00
