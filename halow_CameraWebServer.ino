@@ -17,7 +17,7 @@
 #include "esp_timer.h"
 #include "FS.h"
 #include "esp_camera.h"
-
+#include <Adafruit_NeoPixel.h>
 
 // ===========================
 // Enter your Halow credentials
@@ -41,7 +41,33 @@ RTC_DATA_ATTR bool camera_alive = false;
 
 //#define HALOW //if not defined  than WIFI
 #define WIFI
-#define LED_PIN 19
+#define RGB_PIN 19
+#define NUMPIXELS       1   // 1 on-board WS2812
+// Define the color choices
+enum PixelColor {
+  COLOR_OFF,
+  COLOR_RED,
+  COLOR_GREEN,
+  COLOR_BLUE,
+  COLOR_WHITE,
+  COLOR_ORANGE,
+  COLOR_YELLOW,
+  COLOR_CYAN,
+  COLOR_MAGENTA,
+  COLOR_PURPLE,
+  COLOR_PINK,
+  COLOR_TURQUOISE
+};
+
+enum PixelBrightness {
+  BRIGHTNESS_LOW=1,
+  BRIGHTNESS_NORMAL,
+  BRIGHTNESS_HIGH
+};
+// 
+// THIS IS THE MISSING LINE:
+Adafruit_NeoPixel pixel(NUMPIXELS, RGB_PIN, NEO_GRB + NEO_KHZ800);
+
 #define REC_SCHEDUALE_FILTER
 //#define DELETE_SD
 #ifdef REC_SCHEDUALE_FILTER
@@ -51,7 +77,7 @@ RTC_DATA_ATTR bool camera_alive = false;
 //#define  START_MINUTE  42
 //#define  STOP_MINUTE   42
 #endif
-#define WIFI_ACTIVE_CYCLES_NUM 10
+#define WIFI_ACTIVE_CYCLES_NUM 2
 #define SNAPSHOT_TIMER 100 // in milli seconds
 
 const char* halow_ssid     = "NEW4";
@@ -126,17 +152,87 @@ void savePhotoToSD()
     esp_camera_fb_return(fb);
 }
 
+void pixel_led_change(PixelBrightness level, PixelColor color)
+{
+  uint8_t base_r = 0, base_g = 0, base_b = 0;
+
+  // 1. Get the full-intensity base color values (0-255)
+  switch (color) {
+    case COLOR_RED:
+      base_r = 255; base_g = 0; base_b = 0;
+      break;
+    case COLOR_GREEN:
+      base_r = 0; base_g = 255; base_b = 0;
+      break;
+    case COLOR_BLUE:
+      base_r = 0; base_g = 0; base_b = 255;
+      break;
+    case COLOR_WHITE:
+      base_r = 255; base_g = 255; base_b = 255;
+      break;
+    case COLOR_ORANGE:
+      base_r = 255; base_g = 100; base_b = 0;
+      break;
+    case COLOR_YELLOW:
+      base_r = 255; base_g = 80; base_b = 0;
+      break;
+    case COLOR_CYAN:
+      base_r = 0; base_g = 255; base_b = 255;
+      break;
+    case COLOR_MAGENTA:
+      base_r = 255; base_g = 0; base_b = 255;
+      break;
+    case COLOR_PURPLE:
+      base_r = 128; base_g = 0; base_b = 128;
+      break;
+    case COLOR_PINK:
+      base_r = 255; base_g = 105; base_b = 180;
+      break;
+    case COLOR_TURQUOISE:
+      base_r = 64; base_g = 224; base_b = 208;
+      break;
+    case COLOR_OFF:
+    default:
+      base_r = 0; base_g = 0; base_b = 0;
+      break;
+  }
+
+  // 2. Map the PixelBrightness enum to actual numeric PWM limits
+  int target_brightness = 0;
+  switch (level) {
+    case BRIGHTNESS_LOW:
+      target_brightness = 15;   // Very dim, perfect for battery saving
+      break;
+    case BRIGHTNESS_HIGH:
+      target_brightness = 255;  // Quite bright, highly visible
+      break;
+    case BRIGHTNESS_NORMAL:
+    default:
+      target_brightness = 50;   // Your sweet-spot standard brightness
+      break;
+  }
+
+  // 3. Scale each channel dynamically based on the mapped brightness value
+  uint8_t r = (base_r * target_brightness) / 255;
+  uint8_t g = (base_g * target_brightness) / 255;
+  uint8_t b = (base_b * target_brightness) / 255;
+
+  // 4. Update the pixel
+  pixel.setPixelColor(0, r, g, b); 
+  pixel.show();
+}
+  
 void setup() 
 {
   setCpuFrequencyMhz(80);  
   esp_sleep_wakeup_cause_t wakeup_reason;
   Serial.begin(115200);
-  //pinMode(LED_PIN, OUTPUT);
 
+  mmwlan_shutdown();
   // Turn LED off
- 
-  //  digitalWrite(LED_PIN, HIGH);
- 
+  pixel.begin();            // Initialize the NeoPixel strip/LED
+  pixel.setBrightness(50);  // Set brightness (0 to 255) to protect your eyes
+
   wakeup_reason = esp_sleep_get_wakeup_cause();
   //Serial.printf("Wake reason: %d\n", wakeup_reason);
   Serial.printf("wifi_active_cycles = %d\n", wifi_active_cycles);
@@ -144,6 +240,10 @@ void setup()
   bool isWakeFromSleep = (wakeup_reason == ESP_SLEEP_WAKEUP_TIMER);
   bool coldBoot = !isWakeFromSleep;
 
+  if (coldBoot)
+  {
+    pixel_led_change(BRIGHTNESS_HIGH,COLOR_RED);
+  }
   // Init SD
   sdmmcInit();
   //Serial.println("SD initialized\n");
@@ -209,14 +309,9 @@ void setup()
       //Serial.println("SD deleted\n");
 #endif  
   }
-  else if (wifi_active_cycles < WIFI_ACTIVE_CYCLES_NUM)
-  {
-      Serial.printf("CYCLE %d → WiFi ACTIVE\n", wifi_active_cycles);
-      enableNetwork = true;
-  }
   else
   {
-      Serial.println("CYCLE >= WIFI_ACTIVE_CYCLES_NUM → WiFi OFF MODE");
+      Serial.println("CYCLE >=  WiFi OFF MODE");
 
       enableNetwork = false;
 
@@ -234,8 +329,12 @@ void setup()
       {
         if (WiFi.status() != WL_CONNECTED)
         {
+          pixel_led_change(BRIGHTNESS_LOW,COLOR_OFF);
+
           delay(500);
           Serial.print(".");
+          pixel_led_change(BRIGHTNESS_HIGH,COLOR_RED);
+
         }
         else
         {
@@ -245,23 +344,36 @@ void setup()
           // NTP only once
           if (!ntpDone)
           {
-              Serial.println("Waiting for NTP...");
+             Serial.println("Waiting for NTP...");
 
-              if (!getLocalTime(&timeinfo, 10000))
+              while (!getLocalTime(&timeinfo, 10000))
               {
+                  pixel_led_change(BRIGHTNESS_HIGH,COLOR_YELLOW);
+
                   Serial.println("NTP FAILED");
-                  return;
+                  delay(200);
+                  pixel_led_change(BRIGHTNESS_HIGH,COLOR_RED);
+                  delay(200);
               }
-              strftime(local_time_str,
+
+              pixel_led_change(BRIGHTNESS_HIGH,COLOR_YELLOW);
+              delay(2000);
+              //NTP succeed
+              {
+                strftime(local_time_str,
                       sizeof(local_time_str),
                       "%H-%M-%S__%d_%m_%Y",
                       &timeinfo);
 
-              Serial.print("TIME=");
-              Serial.println(local_time_str);
-              Serial.println("NTP OK");
+                Serial.print("TIME=");
+                Serial.println(local_time_str);
+                Serial.println("NTP OK");
+                pixel_led_change(BRIGHTNESS_HIGH,COLOR_GREEN);
+                delay(2000);
 
-              ntpDone = true;
+
+                ntpDone = true;
+              }
             }
           break;
         }
@@ -270,7 +382,6 @@ void setup()
       if (enableNetwork && ntpDone)
       {
           startCameraServer();
-          
           Serial.print("Camera Ready! Use 'http://");
           Serial.print(WiFi.localIP());
           Serial.println("' to connect");
@@ -290,7 +401,7 @@ void setup()
    // WiFi.mode(WIFI_OFF);
   }
 #endif
-  if (isWakeFromSleep && ntpDone)
+  if (ntpDone)
   {
       wifi_active_cycles++;
   }
@@ -332,21 +443,24 @@ void deep_delay()
         // Normal snapshot interval
         sleep_us = SNAPSHOT_TIMER * 1000ULL;
     }
-
+   
     esp_sleep_enable_timer_wakeup(sleep_us);
     esp_deep_sleep_start();
 }
 
 void loop()
 {
+  pixel_led_change(BRIGHTNESS_LOW,COLOR_BLUE);
   if(ntpDone)
   {
     now = time(NULL);
     localtime_r(&now, &timeinfo);
 
     strftime(local_time_str,sizeof(local_time_str),"/%H-%M-%S__%d_%m_%Y.jpg",&timeinfo);
-   // sprintf(local_time_str,"%s.jpg",local_time_str);
+    sprintf(local_time_str,"%s.jpg",local_time_str);
     
+    
+
     #ifdef REC_SCHEDUALE_FILTER
       if (timeinfo.tm_hour >= WAKING_HOUR &&
           timeinfo.tm_hour <= SLEEPING_HOUR)
@@ -360,7 +474,7 @@ void loop()
 
   if (WiFi.status() != WL_CONNECTED)
   {
+    pixel_led_change(BRIGHTNESS_LOW,COLOR_OFF);
     deep_delay();
   }
-
 }
