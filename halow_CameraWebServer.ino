@@ -31,7 +31,7 @@ char local_time_str[64];
 time_t now = time(NULL);
 struct tm timeinfo;
 
-RTC_DATA_ATTR uint8_t wifi_active_cycles = 0;
+RTC_DATA_ATTR long wifi_active_cycles = 0;
 RTC_DATA_ATTR bool ntpDone = false;
 
 RTC_DATA_ATTR bool enableNetwork = false;
@@ -45,8 +45,9 @@ RTC_DATA_ATTR bool camera_alive = false;
 #define REC_SCHEDUALE_FILTER
 //#define DELETE_SD
 #ifdef REC_SCHEDUALE_FILTER
-#define  START_HOUR 6    // 06:00
-#define  STOP_HOUR  22  // 20:00
+
+#define  WAKING_HOUR  6  
+#define  SLEEPING_HOUR  22  
 //#define  START_MINUTE  42
 //#define  STOP_MINUTE   42
 #endif
@@ -298,8 +299,42 @@ void setup()
 
 void deep_delay()
 {
-  esp_sleep_enable_timer_wakeup(SNAPSHOT_TIMER * 1000ULL);
-  esp_deep_sleep_start();
+    time_t now;
+    struct tm timeinfo;
+
+    time(&now);
+    localtime_r(&now, &timeinfo);
+
+    uint64_t sleep_us;
+
+    // Night sleep: 23:00 -> 06:00
+    if (timeinfo.tm_hour >= SLEEPING_HOUR || timeinfo.tm_hour < WAKING_HOUR)
+    {
+        struct tm wakeTime = timeinfo;
+
+        wakeTime.tm_hour = WAKING_HOUR;
+        wakeTime.tm_min  = 0;
+        wakeTime.tm_sec  = 0;
+
+        // If after 23:00, wake tomorrow morning
+        if (timeinfo.tm_hour >= SLEEPING_HOUR)
+            wakeTime.tm_mday++;
+
+        time_t wakeEpoch = mktime(&wakeTime);
+
+        sleep_us = (uint64_t)(wakeEpoch - now) * 1000000ULL;
+
+        Serial.printf("Night sleep for %.1f hours\n",
+                      (wakeEpoch - now) / 3600.0);
+    }
+    else
+    {
+        // Normal snapshot interval
+        sleep_us = SNAPSHOT_TIMER * 1000ULL;
+    }
+
+    esp_sleep_enable_timer_wakeup(sleep_us);
+    esp_deep_sleep_start();
 }
 
 void loop()
@@ -313,8 +348,8 @@ void loop()
    // sprintf(local_time_str,"%s.jpg",local_time_str);
     
     #ifdef REC_SCHEDUALE_FILTER
-      if (timeinfo.tm_hour >= START_HOUR &&
-          timeinfo.tm_hour <= STOP_HOUR)
+      if (timeinfo.tm_hour >= WAKING_HOUR &&
+          timeinfo.tm_hour <= SLEEPING_HOUR)
       {
         savePhotoToSD();
       }
